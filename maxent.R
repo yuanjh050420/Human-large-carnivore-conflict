@@ -6,11 +6,11 @@ suppressPackageStartupMessages({
 
 ensure_package <- function(pkg) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
-    message(sprintf("检测到缺少包 %s，尝试自动安装...", pkg))
+    message(sprintf("Package %s not found, attempting auto-install...", pkg))
     install.packages(pkg, repos = "https://cloud.r-project.org")
   }
   if (!requireNamespace(pkg, quietly = TRUE)) {
-    stop(sprintf("包 %s 安装或加载失败，请手动安装后重试。", pkg))
+    stop(sprintf("Package %s failed to install or load. Please install manually and retry.", pkg))
   }
 }
 
@@ -109,7 +109,7 @@ required_paths <- c(
 )
 missing_paths <- required_paths[!file.exists(required_paths)]
 if (length(missing_paths) > 0) {
-  stop(sprintf("以下输入不存在，请检查路径：\n%s", paste(missing_paths, collapse = "\n")))
+  stop(sprintf("The following inputs do not exist, please check paths:\n%s", paste(missing_paths, collapse = "\n")))
 }
 
 load_vector <- function(path, layer = NULL) {
@@ -130,7 +130,7 @@ crs_txt <- function(x) {
 
 pick_mask_layer <- function(gdb_path) {
   lyr <- sf::st_layers(gdb_path)
-  if (is.null(lyr) || nrow(lyr) == 0) stop("Mainland.gdb 中没有图层。")
+  if (is.null(lyr) || nrow(lyr) == 0) stop("No layers found in Mainland.gdb.")
   gt <- toupper(as.character(lyr$geomtype))
   idx <- which(gt %in% c("POLYGON", "MULTIPOLYGON"))
   if (length(idx) > 0) return(lyr$name[idx[1]])
@@ -169,7 +169,7 @@ ensure_writable_output <- function(path) {
   if (file.exists(path)) {
     unlink(path, force = TRUE)
     if (file.exists(path)) {
-      stop(sprintf("输出文件被占用或无写权限，请关闭占用程序后重试：%s", path))
+      stop(sprintf("Output file is locked or not writable, please close the program using it and retry: %s", path))
     }
   }
 }
@@ -250,12 +250,12 @@ signature_ok <- file.exists(signature_file) && {
   length(sig_lines) >= 1 && identical(trimws(sig_lines[1]), processing_signature)
 }
 if (!signature_ok) {
-  message("检测到对齐规则更新或缺少签名文件，将强制重建模板与变量栅格。")
+  message("Alignment rules updated or signature file missing, forcing rebuild of template and predictor rasters.")
   reuse_aligned_predictors <- FALSE
 }
 
 if (file.exists(template_file) && reuse_aligned_predictors) {
-  message("检测到已有模板栅格，直接复用。")
+  message("Existing template raster detected, reusing.")
   template <- load_raster(template_file)
 } else {
   terra::writeRaster(
@@ -281,12 +281,12 @@ aligned_files <- character(0)
 aligned_needed <- file.path(aligned_dir, paste0(names(predictor_specs), "_aligned.tif"))
 aligned_ready <- reuse_aligned_predictors && file.exists(template_file) && all(file.exists(aligned_needed))
 if (aligned_ready) {
-  message("检测到已对齐的变量栅格，跳过重投影/重采样。")
+  message("Aligned predictor rasters detected, skipping reprojection/resampling.")
   aligned_files <- aligned_needed
 } else {
-  message("开始对齐变量栅格。")
+  message("Starting predictor raster alignment.")
   for (nm in names(predictor_specs)) {
-    message(sprintf("对齐变量: %s", nm))
+    message(sprintf("Aligning predictor: %s", nm))
     r <- load_raster(predictor_specs[[nm]])
     r_aligned <- terra::project(r, template, method = "bilinear")
     r_aligned <- apply_mask_and_fill(r_aligned, china_mask, fill_window = 3, fill_iter = 3)
@@ -323,7 +323,7 @@ species_xy <- species_xy[presence_keep, , drop = FALSE]
 presence_vals <- presence_vals[presence_keep, , drop = FALSE]
 
 if (nrow(species_xy) < 20) {
-  stop("有效冲突点过少，无法稳定进行 MaxEnt 拟合。")
+  stop("Too few valid conflict points for stable MaxEnt fitting.")
 }
 
 presence_df <- data.frame(x = species_xy[, 1], y = species_xy[, 2])
@@ -339,7 +339,7 @@ jar_candidates <- jar_candidates[nzchar(jar_candidates)]
 maxent_jar <- jar_candidates[file.exists(jar_candidates)][1]
 if (is.na(maxent_jar) || !nzchar(maxent_jar)) {
   stop(paste0(
-    "未找到 maxent.jar。请将 maxent.jar 放到以下任一路径之一后重试：\n",
+    "maxent.jar not found. Please place maxent.jar in one of the following paths and retry:\n",
     paste(unique(jar_candidates), collapse = "\n")
   ))
 }
@@ -376,7 +376,7 @@ write.csv(results_df, file.path(model_dir, "maxent_results.csv"), row.names = FA
 export_default_jackknife <- function(model_path, out_file, scale = 0.72) {
   default_plot <- file.path(model_path, "plots", "species_jacknife.png")
   if (!file.exists(default_plot)) {
-    message("未找到 MaxEnt 默认 Jackknife 图，跳过导出。")
+    message("MaxEnt default Jackknife plot not found, skipping export.")
     return(invisible(FALSE))
   }
 
