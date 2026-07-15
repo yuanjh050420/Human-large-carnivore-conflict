@@ -15,8 +15,8 @@ ensure_package <- function(pkg) {
 }
 
 ensure_rjava <- function() {
-  conda_java_home <- "C:/Anaconda/Library"
-  if (!nzchar(Sys.getenv("JAVA_HOME")) && dir.exists(conda_java_home)) {
+  conda_java_home <- Sys.getenv("CONDA_PREFIX", unset = "")
+  if (!nzchar(Sys.getenv("JAVA_HOME")) && nzchar(conda_java_home) && dir.exists(conda_java_home)) {
     Sys.setenv(JAVA_HOME = conda_java_home)
   }
 
@@ -29,7 +29,7 @@ ensure_rjava <- function() {
       TRUE
     },
     error = function(e) {
-      message(sprintf("rJava JVM 初始化失败: %s", conditionMessage(e)))
+      message(sprintf("rJava JVM initialization failed: %s", conditionMessage(e)))
       FALSE
     }
   )
@@ -37,9 +37,9 @@ ensure_rjava <- function() {
   if (!ok) {
     stop(
       paste(
-        "rJava 已安装但 JVM 初始化失败。",
-        "请确认系统已安装 JDK，或设置 JAVA_HOME 后重试。",
-        "例如在 R 中执行：Sys.setenv(JAVA_HOME='C:/Anaconda/Library')",
+        "rJava is installed but JVM initialization failed.",
+        "Please ensure JDK is installed, or set JAVA_HOME and retry.",
+        "For example: Sys.setenv(JAVA_HOME = Sys.getenv('CONDA_PREFIX'))",
         sep = "\n"
       )
     )
@@ -55,7 +55,7 @@ library(dismo)
 
 u <- function(...) intToUtf8(strtoi(c(...), 16L))
 
-root_dir <- file.path(Sys.getenv("USERPROFILE"), "Desktop", u("4eba", "517d", "51b2", "7a81"))
+root_dir <- "."
 output_dir <- file.path(root_dir, "MaxEnt", "maxext_without_livestock")
 aligned_dir <- file.path(output_dir, "01_aligned_predictors")
 model_dir <- file.path(output_dir, "02_maxent_model")
@@ -71,7 +71,7 @@ dir.create(report_dir, recursive = TRUE, showWarnings = FALSE)
 pop_dem_root <- file.path(root_dir, paste0("pop_dem_gdp", u("6570", "636e")))
 
 paths <- list(
-  conflict_gdb = "C:/Users/yuanj/Desktop/人兽冲突/大型食肉动物冲突事件/新闻事件汇总/ALL.gdb",
+  conflict_gdb = file.path(root_dir, "大型食肉动物冲突事件", "新闻事件汇总", "ALL.gdb"),
   conflict_layer = "All_species_mainland",
   hm = file.path(root_dir, "HM_analysis", "HM2015.gdb"),
   sdm = file.path(root_dir, u("6574", "4f53", "4f5c", "56fe"), u("4e30", "5bcc", "5ea6", "52a0", "51b2", "7a81"), "carnivore_richness.tif"),
@@ -85,8 +85,8 @@ paths <- list(
   tri = file.path(pop_dem_root, "dem_250m", "dem_250m_TRI.tif"),
   gdp = file.path(root_dir, "GDP", "GDP", u("6570", "636e", "0047", "0044", "0050", "0032", "0030", "0031", "0035", "5e74"), "gdp2015"),
   poaching = file.path(root_dir, "poaching", paste0(u("6bcf", "0031", "0030", "4e07", "4eba", "76d7", "730e", "6805", "683c"), ".gdb")),
-  china_mask_gdb = "C:/Users/yuanj/Desktop/ArcGIS/CN/Mainland.gdb",
-  china_border_gdb = "C:/Users/yuanj/Desktop/ArcGIS/CN/china.gdb"
+  china_mask_gdb = "../ArcGIS/CN/Mainland.gdb",
+  china_border_gdb = "../ArcGIS/CN/china.gdb"
 )
 
 required_paths <- c(
@@ -143,7 +143,7 @@ fill_na_by_neighborhood <- function(r, window = 3, max_iter = 3) {
   out
 }
 
-sanitize_non_finite <- function(r) { # 将 Inf 和 -Inf 转为 NA
+sanitize_non_finite <- function(r) {
   terra::app(r, fun = function(v) {
     v[!is.finite(v)] <- NA_real_
     v

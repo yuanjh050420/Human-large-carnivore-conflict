@@ -14,20 +14,13 @@ ensure_package <- function(pkg) {
 
 # -----------------------------
 # Stage 3 (binary): constrained all-subsets + model averaging (ZINB + block RE)
-# 目标：受约束全子集（层级原则）+ ΔAICc <= 2 模型集 + 模型平均
-# 约束：
-# 1) 条件模型候选共10项：8个主效应 + 1个交互(sdm:hm) + 1个二次项(I(hm^2))
-# 2) 零膨胀候选共2项：pop_density, sdm
-# 3) 交互与二次项遵循层级原则
-# 4) 并行拟合；记录失败模型；缓存并避免重复拟合
 # -----------------------------
 
 ensure_package("glmmTMB")
 ensure_package("parallel")
 
-# 0) 路径与参数
-input_file <- "C:/Users/yuanj/Desktop/人兽冲突/GLMM/GLMM_main_9vars_standardized_full_coords_sdm_binary.csv"
-output_dir <- "C:/Users/yuanj/Desktop/人兽冲突/GLMM/glmm_outputs_stage3_binary_all_subsets"
+input_file <- "GLMM/GLMM_main_9vars_standardized_full_coords_sdm_binary.csv"
+output_dir <- "GLMM/glmm_outputs_stage3_binary_all_subsets"
 if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
 output_dir <- normalizePath(output_dir, winslash = "/", mustWork = FALSE)
 
@@ -36,17 +29,12 @@ parallel_workers <- max(1, parallel::detectCores(logical = TRUE) - 1)
 aicc_delta_cutoff <- 2
 cum_weight_cutoff <- 0.95
 
-# 缓存/断点
 use_cache <- TRUE
 cache_file <- file.path(output_dir, "all_subsets_fit_cache_stage3_binary.rds")
 cache_meta_file <- file.path(output_dir, "all_subsets_fit_cache_stage3_binary_meta.rds")
-# TRUE 时强制忽略旧缓存并全量重跑
 force_rebuild_cache <- TRUE
-# TRUE 时仅使用历史缓存做后处理（不重新拟合）
-# 当前默认 FALSE：当缓存不完整时自动补跑缺失模型
 posthoc_from_cache_only <- FALSE
 
-# 1) 读取与检查
 dat <- fread(input_file, encoding = "UTF-8")
 required_cols <- c(
   "Join_Count", "X_aea_m", "Y_aea_m",
@@ -66,7 +54,6 @@ model_dat <- model_dat[complete.cases(model_dat), ]
 if (nrow(model_dat) < 100) stop("有效样本量过小，无法稳定建模。")
 if (any(model_dat$Join_Count < 0, na.rm = TRUE)) stop("Join_Count 存在负值。")
 
-# 变量别名：按用户设定使用 sdm（来自 sdm_binary）
 model_dat$sdm <- model_dat$sdm_binary
 
 model_dat$X_block <- floor(model_dat$X_aea_m / block_size_m)
@@ -78,8 +65,6 @@ cat(sprintf("样本量: %d\n", nrow(model_dat)))
 cat(sprintf("零值比例: %.4f\n", zero_prop))
 cat(sprintf("空间 block 数量: %d\n", nlevels(model_dat$space_block)))
 
-# 2) 候选项（按要求配置）
-# 条件部分：10项 = 8主效应 + 1交互(sdm:hm) + 1二次
 cond_main_terms <- c(
   "gdp", "hm", "sdm", "poaching_pressure",
   "pop_density", "dis_to_pa", "dem_250m", "dem_250m_tri"
@@ -88,10 +73,8 @@ cond_inter_terms <- c("sdm:hm")
 cond_quad_terms <- c("I(hm^2)")
 cond_all_terms <- c(cond_main_terms, cond_inter_terms, cond_quad_terms)
 
-# 零膨胀部分：2项
 zi_candidate_terms <- c("pop_density", "sdm")
 
-# 3) 工具函数
 ensure_output_dir <- function() {
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
@@ -203,7 +186,6 @@ make_cache_signature <- function() {
   )
 }
 
-# 层级约束：交互要求主效应，二次项要求一次项
 is_cond_subset_valid <- function(term_subset) {
   if ("sdm:hm" %in% term_subset && !all(c("sdm", "hm") %in% term_subset)) return(FALSE)
   if ("I(hm^2)" %in% term_subset && !("hm" %in% term_subset)) return(FALSE)
@@ -269,7 +251,6 @@ model_average_part <- function(selected_results, part = c("cond", "zi")) {
         beta_i[i] <- as.numeric(rw$Estimate)
         se_i[i] <- as.numeric(rw$`Std. Error`)
       } else {
-        # full averaging: 缺失项按0
         beta_i[i] <- 0
         se_i[i] <- 0
       }
@@ -291,7 +272,6 @@ model_average_part <- function(selected_results, part = c("cond", "zi")) {
   )
 }
 
-# 4) 枚举模型组合（受约束）
 cond_subsets_raw <- all_subsets(cond_all_terms)
 cond_subsets <- Filter(is_cond_subset_valid, cond_subsets_raw)
 zi_subsets <- all_subsets(zi_candidate_terms)
@@ -312,12 +292,10 @@ for (cset in cond_subsets) {
   }
 }
 
-# 去重（保险）
 task_keys <- vapply(model_tasks, function(x) x$key, character(1))
 model_tasks <- model_tasks[!duplicated(task_keys)]
 cat(sprintf("去重后待拟合模型数: %d\n", length(model_tasks)))
 
-# 5) 加载缓存，避免重复拟合
 cached_results <- list()
 cache_signature <- make_cache_signature()
 
@@ -436,7 +414,6 @@ fit_one_task <- function(task, dat_local) {
   coef_cond <- extract_coef_table(fit, "cond")
   coef_zi <- extract_coef_table(fit, "zi")
 
-  # 模型对象不缓存，避免RDS体积过大；需要summary时再重拟合最优模型
   list(
     key = key,
     status = "ok",
@@ -484,13 +461,11 @@ if (length(pending_tasks) > 0) {
   cat(sprintf("并行拟合完成：新增结果 %d\n", length(new_results)))
 }
 
-# 合并缓存与新增结果
 all_results <- c(cached_results, new_results)
 if (length(all_results) == 0) {
   stop("没有可用拟合结果（缓存为空且新拟合为空）。")
 }
 
-# 保存缓存
 if (use_cache) {
   saveRDS(all_results, cache_file)
   saveRDS(
@@ -503,7 +478,6 @@ if (use_cache) {
   )
 }
 
-# 6) 结果整理
 res_df <- data.frame(
   key = vapply(all_results, function(x) x$key, character(1)),
   status = vapply(all_results, function(x) x$status, character(1)),
@@ -550,7 +524,6 @@ if (nrow(selected_df) == 0) {
 selected_df$selected_weight <- selected_df$akaike_weight / sum(selected_df$akaike_weight)
 safe_write_csv(selected_df, "selected_models_deltaAICc_le_2_stage3_binary.csv", row.names = FALSE)
 
-# 基于累计Akaike权重的95%模型集（按权重从高到低累加）
 ok_by_weight <- ok_df[order(-ok_df$akaike_weight, ok_df$AICc), , drop = FALSE]
 ok_by_weight$cum_akaike_weight <- cumsum(ok_by_weight$akaike_weight)
 cut_idx <- which(ok_by_weight$cum_akaike_weight >= cum_weight_cutoff)[1]
@@ -560,8 +533,6 @@ selected95_df <- ok_by_weight[seq_len(cut_idx), , drop = FALSE]
 selected95_df$selected_weight95 <- selected95_df$akaike_weight / sum(selected95_df$akaike_weight)
 safe_write_csv(selected95_df, "selected_models_cumweight95_stage3_binary.csv", row.names = FALSE)
 
-# 7) 模型平均（基于已缓存系数做full averaging）
-# 主分析改为：累计Akaike权重达到95%的模型集
 selected_keys <- selected95_df$key
 selected_results <- all_results[selected_keys]
 
@@ -577,7 +548,6 @@ if (nrow(avg_all) > 0) {
   safe_write_csv(avg_all, "model_averaged_coefficients_stage3_binary.csv", row.names = FALSE)
 }
 
-# 变量重要性：各变量在全候选模型中的Akaike权重求和
 term_importance <- function(ok_models, part = c("cond", "zi")) {
   part <- match.arg(part)
   terms_col <- if (part == "cond") "cond_terms" else "zi_terms"
@@ -617,7 +587,6 @@ if (nrow(imp_all) > 0) {
   safe_write_csv(imp_all, "variable_importance_akaike_weight_stage3_binary.csv", row.names = FALSE)
 }
 
-# 8) 重拟合最优单模型用于summary和DHARMa
 best_row <- ok_df[1, , drop = FALSE]
 best_cond_terms <- strsplit(best_row$cond_terms, " \\+ ", perl = TRUE)[[1]]
 best_zi_terms <- strsplit(best_row$zi_terms, " \\+ ", perl = TRUE)[[1]]
@@ -633,7 +602,6 @@ best_fit <- glmmTMB::glmmTMB(
 
 safe_capture_output(summary(best_fit), "summary_best_model_all_subsets_binary.txt")
 
-# 基于最优模型输出逐样本预测：zi 线性预测子与 zi 概率
 zi_link_pred <- as.numeric(predict(best_fit, type = "zlink"))
 zi_prob_pred <- as.numeric(predict(best_fit, type = "zprob"))
 mu_cond_pred <- as.numeric(predict(best_fit, type = "conditional"))
@@ -680,7 +648,6 @@ if (requireNamespace("DHARMa", quietly = TRUE)) {
   safe_capture_output(DHARMa::testZeroInflation(sim_res), "diagnostic_zeroinflation_test_binary_all_subsets.txt")
 }
 
-# 9) 输出摘要
 summary_lines <- c(
   "Stage3 binary 全子集 + 模型平均 完成",
   sprintf("输出目录: %s", output_dir),
@@ -708,5 +675,3 @@ cat(sprintf("95%%模型集累计原始权重: %.6f\n", sum(selected95_df$akaike_
 cat("最优模型 IC:\n")
 print(ic_tab)
 cat("--------------------------------------------------\n")
-
-

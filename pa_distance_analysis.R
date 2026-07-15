@@ -1,23 +1,22 @@
-# 加载必要的库
 library(sf)
 library(dplyr)
 library(ggplot2)
 if (!require(patchwork)) {
   install.packages("patchwork")
   library(patchwork)
-}  # 用于组合图形
+}
 
 # ==================== 1. Data Reading ====================
 # Read China protected area polygon layer
-reserves <- st_read("C:\\Users\\yuanj\\Desktop\\ArcGIS\\China Reserve\\China Reserve.shp")
+reserves <- st_read("../ArcGIS/China Reserve/China Reserve.shp")
 
 # Read human-wildlife conflict point layer
-layers <- st_layers("C:\\Users\\yuanj\\Desktop\\人兽冲突\\大型食肉动物冲突事件\\新闻事件汇总\\ALL.gdb")
+layers <- st_layers("大型食肉动物冲突事件/新闻事件汇总/ALL.gdb")
 print(layers$name)  # View available layer names
 if (length(layers$name) == 0) {
   stop("No layers found in ALL.gdb. Please check the path and file.")
 }
-conflicts <- st_read("C:\\Users\\yuanj\\Desktop\\人兽冲突\\大型食肉动物冲突事件\\新闻事件汇总\\ALL.gdb", 
+conflicts <- st_read("大型食肉动物冲突事件/新闻事件汇总/ALL.gdb", 
                      layer = layers$name[1])
 
 # Unified coordinate system (using conflict point CRS)
@@ -54,8 +53,8 @@ summary(conflicts$distance)
 
 # ==================== 3. Generate background random points (for comparison) ====================
 # Read China boundary from GDB as study area
-china_layers <- st_layers("C:\\Users\\yuanj\\Desktop\\ArcGIS\\CN\\china.gdb")
-china <- st_read("C:\\Users\\yuanj\\Desktop\\ArcGIS\\CN\\china.gdb", layer = china_layers$name[1])
+china_layers <- st_layers("../ArcGIS/CN/china.gdb")
+china <- st_read("../ArcGIS/CN/china.gdb", layer = china_layers$name[1])
 # Unify CRS with conflict points
 if (st_crs(china) != st_crs(conflicts)) {
   china <- st_transform(china, crs = st_crs(conflicts))
@@ -177,7 +176,6 @@ p2 <- ggplot(group_summary, aes(x = mid_dist, y = relative_risk)) +
 # Combine two graphs
 combined_plot <- (p1 / p2) + patchwork::plot_layout(ncol = 1, heights = c(1, 1))
 
-# 显示组合图
 if (interactive()) {
   print(combined_plot)
 }
@@ -188,7 +186,7 @@ ks_test <- ks.test(conflicts$distance, background_points$distance)
 print(ks_test)
 
 # Save plots to desktop
-output_plot <- "C:\\Users\\yuanj\\Desktop\\conflict_distance_plot_最终.png"
+output_plot <- "conflict_distance_plot_final.png"
 ggsave(
   output_plot,
   plot = combined_plot,
