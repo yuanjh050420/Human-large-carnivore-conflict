@@ -1,4 +1,14 @@
 # =============================================================================
+# Protected Area Boundary Density and Conflict Density Analysis
+# Goal: Build 10 km buffers, compute boundary density and conflict density per
+#       protected area, and analyse the relationship between the two.
+#   boundary_density = perimeter / area (km/km^2) -- shape complexity proxy
+#   conflict_density = conflict count in buffer / buffer area * 100
+#                      (events per 100 km^2)
+# Expected working directory: repository root
+# Data files (relative paths):
+#   ../ArcGIS/China Reserve/China Reserve.shp  -- China protected area polygons
+#   大型食肉动物冲突事件/新闻事件汇总/ALL.gdb  -- human-wildlife conflict events
 # =============================================================================
 
 library(sf)

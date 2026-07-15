@@ -15,6 +15,8 @@ ensure_package <- function(pkg) {
 }
 
 ensure_rjava <- function() {
+  # If JAVA_HOME is not set, attempt to use the active Conda environment's
+  # Library directory (CONDA_PREFIX env var) as a fallback.
   conda_java_home <- Sys.getenv("CONDA_PREFIX", unset = "")
   if (!nzchar(Sys.getenv("JAVA_HOME")) && nzchar(conda_java_home) && dir.exists(conda_java_home)) {
     Sys.setenv(JAVA_HOME = conda_java_home)
@@ -55,6 +57,9 @@ library(dismo)
 
 u <- function(...) intToUtf8(strtoi(c(...), 16L))
 
+# root_dir is set to the current working directory (".").
+# Run this script from the repository root so that all relative paths resolve
+# correctly.  Output will be written under MaxEnt/maxext_without_livestock/.
 root_dir <- "."
 output_dir <- file.path(root_dir, "MaxEnt", "maxext_without_livestock")
 aligned_dir <- file.path(output_dir, "01_aligned_predictors")
