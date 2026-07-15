@@ -12,10 +12,6 @@ ensure_package <- function(pkg) {
   }
 }
 
-# -----------------------------
-# Stage 3 (binary): constrained all-subsets + model averaging (ZINB + block RE)
-# -----------------------------
-
 ensure_package("glmmTMB")
 ensure_package("parallel")
 
