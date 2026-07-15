@@ -29,7 +29,7 @@ if (st_crs(reserves) != st_crs(conflicts)) {
 
 reserves <- st_make_valid(reserves)
 
-print("正在按几何连通关系合并保护区...")
+print("Merging protected areas by geometric connectivity...")
 original_reserve_count <- nrow(reserves)
 neighbors <- st_intersects(reserves)
 
@@ -61,7 +61,7 @@ reserves <- reserves %>%
   group_by(merge_id) %>%
   summarise(do_union = TRUE, .groups = "drop")
 
-print(paste("合并完成：由", original_reserve_count, "个保护区合并为", nrow(reserves), "个连通保护区块"))
+print(paste("Merge complete: merged", original_reserve_count, "reserves into", nrow(reserves), "connected blocks"))
 
 reserves <- st_simplify(reserves, dTolerance = 100)
 
@@ -85,7 +85,7 @@ buffer_ring_geom <- st_sfc(lapply(seq_along(buffer_outer_geom), function(i) {
 
 buffer_ring_10km <- st_set_geometry(buffer_10km, buffer_ring_geom)
 inner_empty_count <- sum(inner_empty)
-print(paste("向内收缩10km后核心区为空的保护区数量：", inner_empty_count))
+print(paste("Number of reserves with empty core after 10 km inward buffer:", inner_empty_count))
 
 conflicts_in_ring <- st_intersects(buffer_ring_10km, conflicts, sparse = FALSE)
 conflict_count_10km <- rowSums(conflicts_in_ring)
@@ -106,7 +106,7 @@ reserves$conflict_density_10km <- ifelse(
 reserves$boundary_density <- reserves$boundary_length_km / reserves$area_km2
 
 reserves_filtered <- reserves %>% filter(area_km2 > 1)
-print(paste("筛选后保护区数量：", nrow(reserves_filtered), "/ 总数：", nrow(reserves)))
+print(paste("Filtered reserve count:", nrow(reserves_filtered), "/ total:", nrow(reserves)))
 
 correlation_data <- reserves_filtered %>%
   st_drop_geometry() %>%
@@ -127,11 +127,11 @@ plot_data_points <- plot_data %>%
 
 zero_conflict_count <- sum(plot_data$conflict_density_10km == 0)
 
-print(paste("用于相关性分析的保护区数量：", nrow(correlation_data)))
-print(paste("用于作图的保护区数量：", nrow(plot_data), "/ 因x轴非正值被排除：", nrow(correlation_data) - nrow(plot_data)))
-print(paste("其中冲突密度为0的保护区数量：", zero_conflict_count))
-print(paste("用于对数作图与平滑拟合的正值保护区数量：", nrow(plot_data_positive)))
-print(paste("用于显示0值点的纵轴底线：", signif(y_floor, 3)))
+print(paste("Number of reserves used for correlation analysis:", nrow(correlation_data)))
+print(paste("Reserves for plotting:", nrow(plot_data), "/ excluded (non-positive x-axis):", nrow(correlation_data) - nrow(plot_data)))
+print(paste("Reserves with zero conflict density:", zero_conflict_count))
+print(paste("Reserves with positive values for log plot and smooth fit:", nrow(plot_data_positive)))
+print(paste("y-axis floor for displaying zero-conflict-density points:", signif(y_floor, 3)))
 
 cor_test <- cor.test(
   correlation_data$boundary_density,
@@ -139,7 +139,7 @@ cor_test <- cor.test(
   method = "spearman",
   exact = FALSE
 )
-print("边界密度与冲突密度的Spearman相关性（面积>1km²）：")
+print("Spearman correlation between boundary density and conflict density (area > 1 km2):")
 print(cor_test)
 
 p <- ggplot(plot_data_points, aes(x = boundary_density, y = conflict_density_plot)) +
@@ -175,6 +175,6 @@ output_plot <- "protected_area/boundary_vs_conflict_density.png"
 ggsave(output_plot, plot = p, width = 8, height = 6, dpi = 300)
 
 output_info <- file.info(output_plot)
-print(paste("图已保存至:", normalizePath(output_plot, winslash = "/", mustWork = FALSE)))
-print(paste("文件是否存在:", file.exists(output_plot)))
-print(paste("文件大小（字节）:", output_info$size))
+print(paste("Plot saved to:", normalizePath(output_plot, winslash = "/", mustWork = FALSE)))
+print(paste("File exists:", file.exists(output_plot)))
+print(paste("File size (bytes):", output_info$size))

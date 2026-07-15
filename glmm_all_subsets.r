@@ -4,11 +4,11 @@ suppressPackageStartupMessages({
 
 ensure_package <- function(pkg) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
-    message(sprintf("检测到缺少包 %s，尝试自动安装...", pkg))
+    message(sprintf("Package %s not found, attempting auto-install...", pkg))
     install.packages(pkg, repos = "https://cloud.r-project.org")
   }
   if (!requireNamespace(pkg, quietly = TRUE)) {
-    stop(sprintf("包 %s 安装或加载失败，请手动安装后重试。", pkg))
+    stop(sprintf("Package %s failed to install or load. Please install manually and retry.", pkg))
   }
 }
 
@@ -39,7 +39,7 @@ required_cols <- c(
 )
 missing_cols <- setdiff(required_cols, names(dat))
 if (length(missing_cols) > 0) {
-  stop(sprintf("缺少必要字段: %s", paste(missing_cols, collapse = ", ")))
+  stop(sprintf("Missing required columns: %s", paste(missing_cols, collapse = ", ")))
 }
 
 model_dat <- as.data.frame(dat[, ..required_cols])
@@ -47,8 +47,8 @@ for (nm in names(model_dat)) {
   model_dat[[nm]] <- suppressWarnings(as.numeric(model_dat[[nm]]))
 }
 model_dat <- model_dat[complete.cases(model_dat), ]
-if (nrow(model_dat) < 100) stop("有效样本量过小，无法稳定建模。")
-if (any(model_dat$Join_Count < 0, na.rm = TRUE)) stop("Join_Count 存在负值。")
+if (nrow(model_dat) < 100) stop("Effective sample size too small for stable modelling.")
+if (any(model_dat$Join_Count < 0, na.rm = TRUE)) stop("Join_Count contains negative values.")
 
 model_dat$sdm <- model_dat$sdm_binary
 
@@ -57,9 +57,9 @@ model_dat$Y_block <- floor(model_dat$Y_aea_m / block_size_m)
 model_dat$space_block <- factor(paste(model_dat$X_block, model_dat$Y_block, sep = "_"))
 
 zero_prop <- mean(model_dat$Join_Count == 0)
-cat(sprintf("样本量: %d\n", nrow(model_dat)))
-cat(sprintf("零值比例: %.4f\n", zero_prop))
-cat(sprintf("空间 block 数量: %d\n", nlevels(model_dat$space_block)))
+cat(sprintf("Sample size: %d\n", nrow(model_dat)))
+cat(sprintf("Zero proportion: %.4f\n", zero_prop))
+cat(sprintf("Number of spatial blocks: %d\n", nlevels(model_dat$space_block)))
 
 cond_main_terms <- c(
   "gdp", "hm", "sdm", "poaching_pressure",
@@ -90,7 +90,7 @@ safe_write_csv <- function(obj, filename, row.names = FALSE) {
       TRUE
     },
     error = function(e) {
-      message(sprintf("写入失败 [%s]: %s", filename, e$message))
+      message(sprintf("Write failed [%s]: %s", filename, e$message))
       FALSE
     }
   )
@@ -103,7 +103,7 @@ safe_write_lines <- function(text, filename) {
       TRUE
     },
     error = function(e) {
-      message(sprintf("写入失败 [%s]: %s", filename, e$message))
+      message(sprintf("Write failed [%s]: %s", filename, e$message))
       FALSE
     }
   )
@@ -116,7 +116,7 @@ safe_capture_output <- function(expr, filename) {
       TRUE
     },
     error = function(e) {
-      message(sprintf("写入失败 [%s]: %s", filename, e$message))
+      message(sprintf("Write failed [%s]: %s", filename, e$message))
       FALSE
     }
   )
@@ -165,7 +165,7 @@ make_model_key <- function(cond_terms, zi_terms) {
 make_cache_signature <- function() {
   fi <- file.info(input_file)
   if (nrow(fi) == 0 || is.na(fi$size[1])) {
-    stop(sprintf("输入文件不存在或不可读: %s", input_file))
+    stop(sprintf("Input file does not exist or is not readable: %s", input_file))
   }
 
   paste(
@@ -272,9 +272,9 @@ cond_subsets_raw <- all_subsets(cond_all_terms)
 cond_subsets <- Filter(is_cond_subset_valid, cond_subsets_raw)
 zi_subsets <- all_subsets(zi_candidate_terms)
 
-cat(sprintf("条件部分候选子集: %d（层级约束后）\n", length(cond_subsets)))
-cat(sprintf("零膨胀部分候选子集: %d\n", length(zi_subsets)))
-cat(sprintf("理论总组合数: %d\n", length(cond_subsets) * length(zi_subsets)))
+cat(sprintf("Conditional part candidate subsets: %d (after hierarchy constraints)\n", length(cond_subsets)))
+cat(sprintf("Zero-inflation part candidate subsets: %d\n", length(zi_subsets)))
+cat(sprintf("Theoretical total combinations: %d\n", length(cond_subsets) * length(zi_subsets)))
 
 model_tasks <- list()
 for (cset in cond_subsets) {
@@ -290,13 +290,13 @@ for (cset in cond_subsets) {
 
 task_keys <- vapply(model_tasks, function(x) x$key, character(1))
 model_tasks <- model_tasks[!duplicated(task_keys)]
-cat(sprintf("去重后待拟合模型数: %d\n", length(model_tasks)))
+cat(sprintf("Models to fit after deduplication: %d\n", length(model_tasks)))
 
 cached_results <- list()
 cache_signature <- make_cache_signature()
 
 if (force_rebuild_cache) {
-  cat("force_rebuild_cache=TRUE：本次忽略历史缓存并全量重跑。\n")
+  cat("force_rebuild_cache=TRUE: ignoring existing cache and refitting all models.\n")
 } else if (use_cache && file.exists(cache_file)) {
   cache_meta <- if (file.exists(cache_meta_file)) {
     tryCatch(readRDS(cache_meta_file), error = function(e) NULL)
@@ -308,12 +308,12 @@ if (force_rebuild_cache) {
     !is.null(cache_meta$signature) && identical(cache_meta$signature, cache_signature)
 
   if (!meta_ok) {
-    cat("检测到缓存签名不匹配或缺失元数据：将忽略旧缓存并重跑。\n")
+    cat("Cache signature mismatch or missing metadata: ignoring old cache and refitting.\n")
   } else {
     tmp <- tryCatch(readRDS(cache_file), error = function(e) NULL)
     if (is.list(tmp) && length(tmp) > 0) {
       cached_results <- tmp
-      cat(sprintf("已加载缓存结果: %d\n", length(cached_results)))
+      cat(sprintf("Loaded cached results: %d\n", length(cached_results)))
     }
   }
 }
@@ -322,13 +322,14 @@ cached_keys <- names(cached_results)
 if (is.null(cached_keys)) cached_keys <- character(0)
 
 pending_tasks <- Filter(function(x) !(x$key %in% cached_keys), model_tasks)
-cat(sprintf("本次需新拟合模型数: %d\n", length(pending_tasks)))
+cat(sprintf("Models to fit in this run: %d\n", length(pending_tasks)))
 
 if (posthoc_from_cache_only && length(pending_tasks) > 0) {
   stop(sprintf(
     paste0(
-      "当前设置为 posthoc_from_cache_only=TRUE（仅后处理，不重跑模型），",
-      "但缓存缺少 %d 个模型结果。请先关闭该开关补齐缓存，或继续使用现有 ΔAICc<=2 结果。"
+      "posthoc_from_cache_only=TRUE is set (post-processing only, no model refitting), ",
+      "but cache is missing %d model results. ",
+      "Please disable this flag to refit missing models, or proceed with available DeltaAICc<=2 results."
     ),
     length(pending_tasks)
   ))
@@ -426,7 +427,7 @@ fit_one_task <- function(task, dat_local) {
 
 new_results <- list()
 if (length(pending_tasks) > 0) {
-  cat(sprintf("开始并行拟合，worker 数: %d\n", parallel_workers))
+  cat(sprintf("Starting parallel fitting, workers: %d\n", parallel_workers))
 
   cl <- parallel::makeCluster(parallel_workers)
   on.exit(try(parallel::stopCluster(cl), silent = TRUE), add = TRUE)
@@ -454,12 +455,12 @@ if (length(pending_tasks) > 0) {
   new_results <- par_out
   names(new_results) <- vapply(new_results, function(x) x$key, character(1))
 
-  cat(sprintf("并行拟合完成：新增结果 %d\n", length(new_results)))
+  cat(sprintf("Parallel fitting complete: %d new results\n", length(new_results)))
 }
 
 all_results <- c(cached_results, new_results)
 if (length(all_results) == 0) {
-  stop("没有可用拟合结果（缓存为空且新拟合为空）。")
+  stop("No fitting results available (cache empty and no new fits).")
 }
 
 if (use_cache) {
@@ -501,7 +502,7 @@ if (nrow(failed_df) > 0) {
 
 ok_df <- res_df[res_df$status == "ok" & is.finite(res_df$AICc), , drop = FALSE]
 if (nrow(ok_df) == 0) {
-  stop("没有稳定收敛且可计算AICc的模型。")
+  stop("No stably converged models with computable AICc.")
 }
 
 ok_df <- ok_df[order(ok_df$AICc), , drop = FALSE]
@@ -636,7 +637,7 @@ if (requireNamespace("DHARMa", quietly = TRUE)) {
       dev.off()
     },
     error = function(e) {
-      message(sprintf("写入失败 [diagnostic_DHARMa_best_model_binary_all_subsets.png]: %s", e$message))
+      message(sprintf("Write failed [diagnostic_DHARMa_best_model_binary_all_subsets.png]: %s", e$message))
     }
   )
 
@@ -645,29 +646,29 @@ if (requireNamespace("DHARMa", quietly = TRUE)) {
 }
 
 summary_lines <- c(
-  "Stage3 binary 全子集 + 模型平均 完成",
-  sprintf("输出目录: %s", output_dir),
-  sprintf("理论组合数: %d", length(cond_subsets) * length(zi_subsets)),
-  sprintf("成功模型数: %d", nrow(ok_df)),
-  sprintf("失败模型数: %d", nrow(failed_df)),
-  sprintf("ΔAICc <= %.1f 入选模型数: %d", aicc_delta_cutoff, nrow(selected_df)),
-  sprintf("累计Akaike权重达到 %.0f%% 的入选模型数: %d", cum_weight_cutoff * 100, nrow(selected95_df)),
-  sprintf("95%%模型集累计原始权重: %.6f", sum(selected95_df$akaike_weight)),
-  sprintf("最优模型 cond: %s", best_row$cond_terms),
-  sprintf("最优模型 zi: %s", best_row$zi_terms),
-  sprintf("最优模型 AICc: %.6f", best_row$AICc)
+  "Stage3 binary all-subsets + model averaging complete",
+  sprintf("Output directory: %s", output_dir),
+  sprintf("Theoretical combinations: %d", length(cond_subsets) * length(zi_subsets)),
+  sprintf("Successful models: %d", nrow(ok_df)),
+  sprintf("Failed models: %d", nrow(failed_df)),
+  sprintf("Models with DeltaAICc <= %.1f: %d", aicc_delta_cutoff, nrow(selected_df)),
+  sprintf("Models reaching cumulative Akaike weight %.0f%%: %d", cum_weight_cutoff * 100, nrow(selected95_df)),
+  sprintf("Cumulative raw weight of 95%% model set: %.6f", sum(selected95_df$akaike_weight)),
+  sprintf("Best model cond: %s", best_row$cond_terms),
+  sprintf("Best model zi: %s", best_row$zi_terms),
+  sprintf("Best model AICc: %.6f", best_row$AICc)
 )
 
 safe_write_lines(summary_lines, "run_summary_stage3_binary_all_subsets.txt")
 
 cat("--------------------------------------------------\n")
-cat("Stage3 binary 全子集 + 模型平均 完成。\n")
-cat(sprintf("输出目录: %s\n", output_dir))
-cat(sprintf("理论组合数: %d\n", length(cond_subsets) * length(zi_subsets)))
-cat(sprintf("成功模型数: %d; 失败模型数: %d\n", nrow(ok_df), nrow(failed_df)))
-cat(sprintf("ΔAICc <= %.1f 入选模型数: %d\n", aicc_delta_cutoff, nrow(selected_df)))
-cat(sprintf("累计Akaike权重达到 %.0f%% 的入选模型数: %d\n", cum_weight_cutoff * 100, nrow(selected95_df)))
-cat(sprintf("95%%模型集累计原始权重: %.6f\n", sum(selected95_df$akaike_weight)))
-cat("最优模型 IC:\n")
+cat("Stage3 binary all-subsets + model averaging complete.\n")
+cat(sprintf("Output directory: %s\n", output_dir))
+cat(sprintf("Theoretical combinations: %d\n", length(cond_subsets) * length(zi_subsets)))
+cat(sprintf("Successful models: %d; failed models: %d\n", nrow(ok_df), nrow(failed_df)))
+cat(sprintf("Models with DeltaAICc <= %.1f: %d\n", aicc_delta_cutoff, nrow(selected_df)))
+cat(sprintf("Models reaching cumulative Akaike weight %.0f%%: %d\n", cum_weight_cutoff * 100, nrow(selected95_df)))
+cat(sprintf("Cumulative raw weight of 95%% model set: %.6f\n", sum(selected95_df$akaike_weight)))
+cat("Best model IC:\n")
 print(ic_tab)
 cat("--------------------------------------------------\n")

@@ -4,11 +4,11 @@ suppressPackageStartupMessages({
 
 ensure_package <- function(pkg) {
   if (!requireNamespace(pkg, quietly = TRUE)) {
-    message(sprintf("检测到缺少包 %s，尝试自动安装...", pkg))
+    message(sprintf("Package %s not found, attempting auto-install...", pkg))
     install.packages(pkg, repos = "https://cloud.r-project.org")
   }
   if (!requireNamespace(pkg, quietly = TRUE)) {
-    stop(sprintf("包 %s 安装或加载失败，请手动安装后重试。", pkg))
+    stop(sprintf("Package %s failed to install or load. Please install manually and retry.", pkg))
   }
 }
 
@@ -20,7 +20,7 @@ output_dir <- "GLMM/glmm_outputs_stage3_binary_all_subsets"
 best_model_file <- file.path(output_dir, "best_model_ic_stage3_binary_all_subsets.csv")
 
 if (!file.exists(best_model_file)) {
-  stop(sprintf("缺少最优模型信息文件: %s", best_model_file))
+  stop(sprintf("Best model info file not found: %s", best_model_file))
 }
 
 required_cols <- c(
@@ -55,7 +55,7 @@ safe_write_csv <- function(obj, filename, row.names = FALSE) {
       TRUE
     },
     error = function(e) {
-      message(sprintf("写入失败 [%s]: %s", filename, e$message))
+      message(sprintf("Write failed [%s]: %s", filename, e$message))
       FALSE
     }
   )
@@ -68,7 +68,7 @@ safe_write_lines <- function(text, filename) {
       TRUE
     },
     error = function(e) {
-      message(sprintf("写入失败 [%s]: %s", filename, e$message))
+      message(sprintf("Write failed [%s]: %s", filename, e$message))
       FALSE
     }
   )
@@ -77,7 +77,7 @@ safe_write_lines <- function(text, filename) {
 dat <- fread(input_file, encoding = "UTF-8")
 missing_cols <- setdiff(required_cols, names(dat))
 if (length(missing_cols) > 0) {
-  stop(sprintf("缺少必要字段: %s", paste(missing_cols, collapse = ", ")))
+  stop(sprintf("Missing required columns: %s", paste(missing_cols, collapse = ", ")))
 }
 
 model_dat <- as.data.frame(dat[, ..required_cols])
@@ -85,8 +85,8 @@ for (nm in names(model_dat)) {
   model_dat[[nm]] <- suppressWarnings(as.numeric(model_dat[[nm]]))
 }
 model_dat <- model_dat[complete.cases(model_dat), ]
-if (nrow(model_dat) < 100) stop("有效样本量过小，无法稳定建模。")
-if (any(model_dat$Join_Count < 0, na.rm = TRUE)) stop("Join_Count 存在负值。")
+if (nrow(model_dat) < 100) stop("Effective sample size too small for stable modelling.")
+if (any(model_dat$Join_Count < 0, na.rm = TRUE)) stop("Join_Count contains negative values.")
 
 model_dat$sdm <- model_dat$sdm_binary
 model_dat$X_block <- floor(model_dat$X_aea_m / block_size_m)
@@ -95,7 +95,7 @@ model_dat$space_block <- factor(paste(model_dat$X_block, model_dat$Y_block, sep 
 
 best_model_info <- read.csv(best_model_file, stringsAsFactors = FALSE)
 if (nrow(best_model_info) < 1) {
-  stop("最优模型信息文件为空，无法计算 R²。")
+  stop("Best model info file is empty, cannot compute R2.")
 }
 
 best_row <- best_model_info[1, , drop = FALSE]
@@ -124,7 +124,7 @@ r2_df <- data.frame(
 safe_write_csv(r2_df, "top_model_r2_nakagawa_stage3_binary.csv", row.names = FALSE)
 
 summary_lines <- c(
-  "Stage3 binary top model R2 计算完成",
+  "Stage3 binary top model R2 computation complete",
   sprintf("cond_terms: %s", r2_df$cond_terms[1]),
   sprintf("zi_terms: %s", r2_df$zi_terms[1]),
   sprintf("marginal R2: %.6f", r2_df$R2_marginal[1]),
