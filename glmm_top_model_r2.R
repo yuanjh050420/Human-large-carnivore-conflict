@@ -15,8 +15,8 @@ ensure_package <- function(pkg) {
 ensure_package("glmmTMB")
 ensure_package("performance")
 
-input_file <- "C:/Users/yuanj/Desktop/人兽冲突/GLMM/GLMM_main_9vars_standardized_full_coords_sdm_binary.csv"
-output_dir <- "C:/Users/yuanj/Desktop/人兽冲突/GLMM/glmm_outputs_stage3_binary_all_subsets"
+input_file <- "GLMM/GLMM_main_9vars_standardized_full_coords_sdm_binary.csv"
+output_dir <- "GLMM/glmm_outputs_stage3_binary_all_subsets"
 best_model_file <- file.path(output_dir, "best_model_ic_stage3_binary_all_subsets.csv")
 
 if (!file.exists(best_model_file)) {
